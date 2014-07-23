@@ -1,0 +1,86 @@
+diff -Naur upstream.orig/glib/glib-init.c upstream/glib/glib-init.c
+--- upstream.orig/glib/glib-init.c	2014-07-23 13:01:53.884604408 +0300
++++ upstream/glib/glib-init.c	2014-07-23 15:32:44.175280199 +0300
+@@ -46,6 +46,10 @@
+                                   G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_DEBUG;
+ GLogLevelFlags g_log_always_fatal = G_LOG_FATAL_MASK;
+ 
++#ifdef CLOCK_MONOTONIC
++clockid_t g_clock = CLOCK_MONOTONIC;
++#endif
++
+ static gboolean
+ debug_key_matches (const gchar *key,
+                    const gchar *token,
+@@ -214,11 +218,26 @@
+   g_mem_gc_friendly = flags & 1;
+ }
+ 
++#ifdef CLOCK_MONOTONIC
++static void
++g_clock_init (void)
++{
++#ifdef CLOCK_BOOTTIME
++  char *clockspec = getenv("G_CLOCK");
++  if (clockspec && strcasecmp(clockspec, "BOOTTIME") == 0)
++    g_clock = CLOCK_BOOTTIME;
++#endif
++}
++#endif
++
+ static void
+ glib_init (void)
+ {
+   g_messages_prefixed_init ();
+   g_debug_init ();
++#ifdef CLOCK_MONOTONIC
++  g_clock_init ();
++#endif
+ }
+ 
+ #if defined (G_OS_WIN32)
+diff -Naur upstream.orig/glib/glib-init.h upstream/glib/glib-init.h
+--- upstream.orig/glib/glib-init.h	2014-07-23 13:01:53.884604408 +0300
++++ upstream/glib/glib-init.h	2014-07-23 14:46:27.828377325 +0300
+@@ -27,6 +27,9 @@
+ extern GLogLevelFlags g_log_always_fatal;
+ extern GLogLevelFlags g_log_msg_prefix;
+ GLIB_VAR gboolean g_mem_gc_friendly;
++#ifdef CLOCK_MONOTONIC
++GLIB_VAR clockid_t g_clock;
++#endif
+ 
+ #ifdef G_OS_WIN32
+ #include <windows.h>
+diff -Naur upstream.orig/glib/gmain.c upstream/glib/gmain.c
+--- upstream.orig/glib/gmain.c	2014-07-23 13:01:53.888604408 +0300
++++ upstream/glib/gmain.c	2014-07-23 14:46:01.224378288 +0300
+@@ -2545,7 +2545,7 @@
+   struct timespec ts;
+ 
+ #ifdef CLOCK_MONOTONIC
+-  clock_gettime (CLOCK_MONOTONIC, &ts);
++  clock_gettime (g_clock, &ts);
+ #else
+   clock_gettime (CLOCK_REALTIME, &ts);
+ #endif
+diff -Naur upstream.orig/glib/gthread-posix.c upstream/glib/gthread-posix.c
+--- upstream.orig/glib/gthread-posix.c	2014-07-23 13:01:53.884604408 +0300
++++ upstream/glib/gthread-posix.c	2014-07-23 14:47:35.608374872 +0300
+@@ -47,6 +47,7 @@
+ #include "gslice.h"
+ #include "gmessages.h"
+ #include "gstrfuncs.h"
++#include "glib-init.h"
+ 
+ #include <stdlib.h>
+ #include <stdio.h>
+@@ -642,7 +643,7 @@
+ 
+   pthread_condattr_init (&attr);
+ #if defined (HAVE_PTHREAD_CONDATTR_SETCLOCK) && defined (CLOCK_MONOTONIC)
+-  pthread_condattr_setclock (&attr, CLOCK_MONOTONIC);
++  pthread_condattr_setclock (&attr, g_clock);
+ #endif
+ 
+   cond = malloc (sizeof (pthread_cond_t));

@@ -70,7 +70,7 @@ version 2 of the GLib library.
 %patch2 -p1
 # use-mtab-instead-of-fstab.patch
 %patch3 -p1
-use-clock-boottime.patch
+# use-clock-boottime.patch
 %patch4 -p1
 
 %build
